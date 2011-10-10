@@ -13,4 +13,4 @@ Just for fun. I want to try and create functioning server that will serve as pla
 # Thanks
 
 First, thanks for this awesome game, [Notch](http://twitter.com/notch)!
-Thanks to authors of Minecraftwiki.net and Minecraft Coalition for protocol information.
+Thanks to authors of Minecraftwiki.net and Minecraft Coalition wiki for protocol information.
