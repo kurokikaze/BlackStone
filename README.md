@@ -4,7 +4,7 @@ Blackstone is Minecraft Survival server written in Node.js as an exercise. It's 
 
 # Features
 
-Right now it can be pinged from server selection screen, and user can authenticate (but chunks cannot be sent yet, so no actual game).
+Right now the server can be pinged from server selection screen, and user can authenticate (but chunks cannot be sent yet, so no actual game).
 
 # Why?
 
