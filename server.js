@@ -1,6 +1,7 @@
 var net = require('net'),
 	iconv = require('iconv').Iconv,
-	compress = require('compress');
+	compress = require('compress-buffer').compress,
+    config = require('./config');
 
 var generate_table = function() {
 	var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
@@ -22,15 +23,16 @@ var generate_table = function() {
 	chunk.fill(255, 32767+16384, 16384); // full brightness
 	chunk.fill(255, 23767 + 16384*2, 16384); //full sky light
 
-	var gzip = new compress.Gzip;
-	gzip.init();
+	//var gzip = new compress.Gzip;
+	//gzip.init();
 
-	var compressed_chunk_data = gzip.deflate(chunk, binary);
+	var compressed_chunk_data = compress(chunk);
 
 	return compressed_chunk_data;
 }
 
 var command = {};
+
 command.kick = function(str) {
 	var buf = new Buffer(3 + Buffer.byteLength(str, 'ucs2'));
 	buf[0] = 255;
@@ -181,5 +183,5 @@ var server = net.createServer(function(c) {
 
 });
 
-server.listen(12345, '192.168.135.128');
-console.log('Server started, waiting for init packet');
+server.listen(config.port, config.ip);
+console.log('Server started on ip ' + config.ip + ', port ' + config.port + ', waiting for init packet');
