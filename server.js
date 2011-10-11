@@ -1,8 +1,13 @@
 var net = require('net'),
 	iconv = require('iconv').Iconv,
-	compress = require('compress-buffer').compress,
+	zlib = require('zlib'),
     config = require('./config');
 
+if(zlib.deflate) {
+console.log('Deflate present');
+} else {
+ console.log('No defklate present in zlib');
+ }
 var generate_table = function() {
 	var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
 	var index = 0;
@@ -19,14 +24,17 @@ var generate_table = function() {
 			}
 		}
 	}
-	chunk.fill(0, 32767, 16384); // empty metadata
-	chunk.fill(255, 32767+16384, 16384); // full brightness
-	chunk.fill(255, 23767 + 16384*2, 16384); //full sky light
+	chunk.fill(0, 32768, 32768+16384); // empty metadata
+	chunk.fill(255, 32768+16384, 32768+16384*2); // full brightness
+	chunk.fill(255, 32768 + 16384*2, 32768+16384*3); //full sky light
 
+    console.log('Uncompressed chunk size: ' + chunk.length);
 	//var gzip = new compress.Gzip;
 	//gzip.init();
+    //
 
-	var compressed_chunk_data = compress(chunk);
+    //var zlib = 
+	var compressed_chunk_data = zlib.Deflate(chunk);
 
 	return compressed_chunk_data;
 }
@@ -160,13 +168,16 @@ var server = net.createServer(function(c) {
 
 			// Send chunks
 			var table_chunk = generate_table();
-			for (var x = -10; x++; x<10) {
-				for (var z = -10; z++; z<10) {
+            console.log('Sending chunks');
+			for (var x = -7; x++; x<7) {
+				for (var z = -7; z++; z<7) {
 					var answer_part = command.chunk(x, 0, z, 15, 127, 15, table_chunk);
+                    //console.log('Sending chunk for ' + x + ', ' + z + ', size is' + answer_part.length);
 					c.write(answer_part);
 				}
 			}
 			var answer = command.position_look(0, 33, 0, 0, 0, 0, 1);
+            
 			c.write(answer);
 		} else {
 			if (packet.type != 11) {
