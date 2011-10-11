@@ -3,12 +3,12 @@ var net = require('net'),
 	zlib = require('zlib'),
     config = require('./config');
 
-if(zlib.deflate) {
+if(zlib.Deflate) {
 console.log('Deflate present');
 } else {
- console.log('No defklate present in zlib');
+ console.log('No deflate present in zlib');
  }
-var generate_table = function() {
+var generate_table = function(callback) {
 	var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
 	var index = 0;
 
@@ -16,14 +16,18 @@ var generate_table = function() {
 		for (var z = 0; z++; z < 16) {
 			for (var y = 1; y++; y < 128) {
 				index = y + (z * 128) + (x * 127 * 16);
-				if (y > 30) {
+				if (y > 62) {
 					chunk[index] = 0;
 				} else {
 					chunk[index] = 1;
 				}
+				if (y <= 1) {
+					chunk[index] = 7;
+				}
 			}
 		}
 	}
+
 	chunk.fill(0, 32768, 32768+16384); // empty metadata
 	chunk.fill(255, 32768+16384, 32768+16384*2); // full brightness
 	chunk.fill(255, 32768 + 16384*2, 32768+16384*3); //full sky light
@@ -34,9 +38,40 @@ var generate_table = function() {
     //
 
     //var zlib = 
-	var compressed_chunk_data = zlib.Deflate(chunk);
 
-	return compressed_chunk_data;
+	var compressor = zlib.Deflate();
+
+	var data = [];
+	compressor.on('data', function(data_part) { 
+		// console.log('Compressed part!');
+		data.push(data_part);
+		//callback(data_part);
+		//data = data_part;
+	});
+	compressor.on('end', function() {
+		console.log('Chunk size after compression: ' + data.length);
+		var total_length = 0;
+		for (i in data) {
+			total_length = data[i].length;
+		}
+		var out_data = new Buffer(total_length);
+		var pointer = 0;
+		for (i in data) {
+			data[i].copy(out_data, pointer, 0);
+			pointer += data[i].length;
+		}
+		callback(out_data);
+		
+//		if (Buffer.isBuffer(data)) {
+//			console.log('Compressed data is a buffer');
+//		} 
+//		callback(data.toBuffer('binary'));
+	});
+	compressor.write(chunk);
+	compressor.end();
+	if (!callback) {
+		return chunk;
+	}
 }
 
 var command = {};
@@ -77,9 +112,41 @@ command.login = function(entity_id, seed, mode, dimension, difficulty, height, m
 	return buf;
 }
 
+command.spawn_position = function(X, Y, Z) {
+	var buf = new Buffer(13);
+
+	buf.writeUInt8(0x06, 0);
+	buf.writeInt32BE(X, 1);
+	buf.writeInt32BE(Y, 5);
+	buf.writeInt32BE(Z, 9);
+	return buf;
+}
+
+command.equip = function(entity_id, slot, item_id, damage) {
+	var buf = new Buffer(11);
+	buf.writeUInt8(0x05, 0);
+
+	buf.writeInt32BE(entity_id, 1);
+	buf.writeInt16BE(slot, 5);
+	buf.writeInt16BE(item_id, 7);
+	buf.writeInt16BE(damage, 9);
+
+	return buf;
+}
+
+command.prechunk = function(X, Y, mode) {
+	var buf = new Buffer(10);
+	buf.writeUInt8(0x32, 0);
+	buf.writeInt32BE(X, 1);
+	buf.writeInt32BE(Y, 5);
+	buf.writeUInt8(1, 9);
+	return buf;
+}
+
 command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
+	// console.log('Planned chunk length is ' + compressed_chunk.length);
 	var buf = new Buffer(18 + compressed_chunk.length);
-	buf.writeInt8(0x33, 0);
+	buf.writeUInt8(0x33, 0, true);
 	buf.writeInt32BE(X, 1);
 	buf.writeInt16BE(Y, 5);
 	buf.writeInt32BE(Z, 7);
@@ -87,20 +154,26 @@ command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
 	buf.writeInt8(Size_Y, 12);
 	buf.writeInt8(Size_Z, 13);
 	buf.writeInt32BE(compressed_chunk.length, 14);
+	/*if (Buffer.isBuffer(compressed_chunk)) {
+		console.log('Type of compressed chunk is buffer');
+	}
+	if (compressed_chunk instanceof String) {
+		console.log('Type of compressed chunk is String');
+	}*/
 	compressed_chunk.copy(buf, 18, 0);
 	return buf;
 }
 
 command.position_look = function(x, stance, y, z, yaw, pitch, on_ground) {
 	var buf = new Buffer(42);
-	buf.writeInt8(0x0D, 0);
+	buf.writeUInt8(0x0D, 0);
 	buf.writeDoubleBE(x, 1);
-	buf.writeDoubleBE(y, 9);
-	buf.writeDoubleBE(stance, 17);
+	buf.writeDoubleBE(stance, 9);
+	buf.writeDoubleBE(y, 17);
 	buf.writeDoubleBE(z, 25);
 	buf.writeFloatBE(yaw, 33);
 	buf.writeFloatBE(pitch, 37);
-	buf.writeInt8(on_ground, 41);
+	buf.writeUInt8(parseInt(on_ground), 41);
 	return buf;
 }
 
@@ -134,6 +207,14 @@ var readPacket = function(str) {
 		case 3:
 			
 			break;
+		case 11:
+			break;
+		case 13:
+			packet.fields.X = str.readDoubleBE(1);
+			packet.fields.Y = str.readDoubleBE(9);
+			packet.fields.Stance = str.readDoubleBE(17);
+			packet.fields.Z = str.readDoubleBE(25);
+			break;
 		case 65533:
 			break;
 	}
@@ -146,11 +227,11 @@ var str8 = function(str) {
 }
 
 var server = net.createServer(function(c) {
-	var data = '';
+	//var data = '';
         var hash = 'deadbeefdeadbeef';
 	c.on('data', function(chunk) {
 		console.log(chunk.length + ' bytes of data received');
-		data += chunk;
+		//data += chunk;
 		var packet = readPacket(chunk);
 		if (packet.type == 254) {
 			console.log('Client asks for server status');
@@ -163,22 +244,29 @@ var server = net.createServer(function(c) {
 			var answer = command.auth(hash);
 			c.write(answer);
 		} else if(packet.type == 1) {
-			var answer = command.login(1289, 1224, 1, 0, 0, 128, 128);
-			c.write(answer);
+			c.write(command.login(1289, 1224, 1, 0, 0, 128, 128));
 
 			// Send chunks
-			var table_chunk = generate_table();
-            console.log('Sending chunks');
-			for (var x = -7; x++; x<7) {
-				for (var z = -7; z++; z<7) {
-					var answer_part = command.chunk(x, 0, z, 15, 127, 15, table_chunk);
-                    //console.log('Sending chunk for ' + x + ', ' + z + ', size is' + answer_part.length);
-					c.write(answer_part);
+			generate_table(function(table_chunk) {
+			
+            console.log('Sending chunks of size ' + table_chunk.length);
+			for (var x = -7; x <= 7; x++) {
+				for (var z = -7; z <= 7; z++) {
+					c.write(command.prechunk(x*16, z*16, 1));
+					c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, table_chunk));
 				}
 			}
-			var answer = command.position_look(0, 33, 0, 0, 0, 0, 1);
-            
-			c.write(answer);
+			console.log('Sending inventory');
+			for (var slot = 0; slot <= 4; slot++) {
+				c.write(command.equip(1289, slot, -1, 0));
+			}
+			console.log('Setting spawn position');
+			c.write(command.spawn_position(0,63,0));
+		
+			console.log('Spawning player');
+			c.write(command.position_look(0, 63, 63, 0, 0, 0, 1));
+			//c.write(answer);
+			});
 		} else {
 			if (packet.type != 11) {
 				console.log('Got packet of type ' + packet.type + ', fields: ', packet.fields);
@@ -189,7 +277,7 @@ var server = net.createServer(function(c) {
 
 	c.on('end', function() {
 		console.log('End');
-		console.log('Packet type is ' + data.charCodeAt(0));
+		// console.log('Packet type is ' + data.charCodeAt(0));
 	});
 
 });
