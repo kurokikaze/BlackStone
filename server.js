@@ -17,12 +17,12 @@ var generate_table = function(callback) {
 			for (var y = 1; y++; y < 128) {
 				index = y + (z * 128) + (x * 127 * 16);
 				if (y > 62) {
-					chunk[index] = 0;
+					chunk.writeUInt8(0, index);
 				} else {
-					chunk[index] = 1;
+					chunk.writeUInt8(1, index);
 				}
 				if (y <= 1) {
-					chunk[index] = 7;
+					chunk.writeUInt8(7, index);
 				}
 			}
 		}
@@ -33,27 +33,19 @@ var generate_table = function(callback) {
 	chunk.fill(255, 32768 + 16384*2, 32768+16384*3); //full sky light
 
     console.log('Uncompressed chunk size: ' + chunk.length);
-	//var gzip = new compress.Gzip;
-	//gzip.init();
-    //
-
-    //var zlib = 
 
 	var compressor = zlib.Deflate();
 
 	var data = [];
 	compressor.on('data', function(data_part) { 
-		// console.log('Compressed part!');
 		data.push(data_part);
-		//callback(data_part);
-		//data = data_part;
 	});
 	compressor.on('end', function() {
-		console.log('Chunk size after compression: ' + data.length);
 		var total_length = 0;
 		for (i in data) {
 			total_length = data[i].length;
 		}
+		console.log('Chunk size after compression: ' + total_length);
 		var out_data = new Buffer(total_length);
 		var pointer = 0;
 		for (i in data) {
@@ -61,11 +53,7 @@ var generate_table = function(callback) {
 			pointer += data[i].length;
 		}
 		callback(out_data);
-		
-//		if (Buffer.isBuffer(data)) {
-//			console.log('Compressed data is a buffer');
-//		} 
-//		callback(data.toBuffer('binary'));
+
 	});
 	compressor.write(chunk);
 	compressor.end();
@@ -76,17 +64,33 @@ var generate_table = function(callback) {
 
 var command = {};
 
+command.keepalive = function() {
+	var hash = Math.Random(0, 1337);
+	var buf = new Buffer(5);
+	buf.writeUInt8(0, 0);
+	buf.writeInt32BE(hash, 1);
+	return buf;
+}
+
 command.kick = function(str) {
 	var buf = new Buffer(3 + Buffer.byteLength(str, 'ucs2'));
-	buf[0] = 255;
+	buf.writeUInt8(255, 0);
 	var prepared_string = str16(str);
 	prepared_string.copy(buf, 1, 0);
 	return buf;
 }
 
+command.time = function(hash) {
+	var time = Date.now();
+	var buf = new Buffer(9);
+	buf.writeUInt8(0x04, 0);
+	buf.writeDoubleBE(time/50, 1);
+	return buf;
+}
+
 command.auth = function(hash) {
 	var buf = new Buffer(3 + Buffer.byteLength(hash, 'ucs2'));
-	buf[0] = 2;
+	buf.writeUInt8(2, 0);
 	var prepared_hash = str16(hash);
 	prepared_hash.copy(buf, 1, 0);
 	return buf;
@@ -94,7 +98,7 @@ command.auth = function(hash) {
 
 command.login = function(entity_id, seed, mode, dimension, difficulty, height, maxplayers) {
 	var buf = new Buffer(23);
-	buf[0] = 1;
+	buf.writeUInt8(0x01, 0);
 	buf.writeInt32BE(entity_id, 1); // entity ID
 	buf.writeInt16BE(0, 5); // empty string
 
@@ -114,11 +118,12 @@ command.login = function(entity_id, seed, mode, dimension, difficulty, height, m
 
 command.spawn_position = function(X, Y, Z) {
 	var buf = new Buffer(13);
-
 	buf.writeUInt8(0x06, 0);
+
 	buf.writeInt32BE(X, 1);
 	buf.writeInt32BE(Y, 5);
 	buf.writeInt32BE(Z, 9);
+
 	return buf;
 }
 
@@ -134,19 +139,20 @@ command.equip = function(entity_id, slot, item_id, damage) {
 	return buf;
 }
 
-command.prechunk = function(X, Y, mode) {
+command.prechunk = function(X, Z, mode) {
 	var buf = new Buffer(10);
 	buf.writeUInt8(0x32, 0);
+
 	buf.writeInt32BE(X, 1);
-	buf.writeInt32BE(Y, 5);
-	buf.writeUInt8(1, 9);
+	buf.writeInt32BE(Z, 5);
+	buf.writeUInt8(parseInt(1), 9);
 	return buf;
 }
 
 command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
 	// console.log('Planned chunk length is ' + compressed_chunk.length);
 	var buf = new Buffer(18 + compressed_chunk.length);
-	buf.writeUInt8(0x33, 0, true);
+	buf.writeUInt8(0x33, 0);
 	buf.writeInt32BE(X, 1);
 	buf.writeInt16BE(Y, 5);
 	buf.writeInt32BE(Z, 7);
@@ -189,10 +195,11 @@ var str16 = function(str) {
 var readPacket = function(str) {
 	conv = new iconv('UCS-2BE', 'UTF-8');
 	var packet = {};
-	packet.type = str[0];
+	packet.type = str.readUInt8(0);
+	// console.log('Got packet of type ' + packet.type);
 	packet.fields = {};
 	
-	switch(str[0]) {
+	switch(packet.type) {
 		case 1:
 			packet.fields.protocol_version = str.readUInt32BE(1);
 			var length_username = str.readUInt16BE(9);
@@ -215,8 +222,6 @@ var readPacket = function(str) {
 			packet.fields.Stance = str.readDoubleBE(17);
 			packet.fields.Z = str.readDoubleBE(25);
 			break;
-		case 65533:
-			break;
 	}
 	return packet;
 }
@@ -230,7 +235,7 @@ var server = net.createServer(function(c) {
 	//var data = '';
         var hash = 'deadbeefdeadbeef';
 	c.on('data', function(chunk) {
-		console.log(chunk.length + ' bytes of data received');
+		//console.log(chunk.length + ' bytes of data received');
 		//data += chunk;
 		var packet = readPacket(chunk);
 		if (packet.type == 254) {
@@ -252,10 +257,13 @@ var server = net.createServer(function(c) {
             console.log('Sending chunks of size ' + table_chunk.length);
 			for (var x = -7; x <= 7; x++) {
 				for (var z = -7; z <= 7; z++) {
-					c.write(command.prechunk(x*16, z*16, 1));
+					c.write(command.prechunk(x, z, 1));
 					c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, table_chunk));
 				}
 			}
+
+			console.log('Sending time');
+			c.write(command.time());
 			console.log('Sending inventory');
 			for (var slot = 0; slot <= 4; slot++) {
 				c.write(command.equip(1289, slot, -1, 0));
@@ -264,12 +272,12 @@ var server = net.createServer(function(c) {
 			c.write(command.spawn_position(0,63,0));
 		
 			console.log('Spawning player');
-			c.write(command.position_look(0, 63, 63, 0, 0, 0, 1));
+			c.write(command.position_look(1, 67.2, 65.6, 1, 0, 0, 0));
 			//c.write(answer);
 			});
 		} else {
 			if (packet.type != 11) {
-				console.log('Got packet of type ' + packet.type + ', fields: ', packet.fields);
+				//console.log('Got packet of type ' + packet.type + ', fields: ', packet.fields);
 			}
 		}
 		
