@@ -255,6 +255,11 @@ var server = net.createServer(function(c) {
 			generate_table(function(table_chunk) {
 			
             console.log('Sending chunks of size ' + table_chunk.length);
+			for (var x = -7; x<=7; x++) {
+				for (var z = -7; z <= 7; z++) {
+					c.write(command.prechunk(x, z, 1));
+				}
+			}
 			for (var x = -7; x <= 7; x++) {
 				for (var z = -7; z <= 7; z++) {
 				//	c.write(command.prechunk(x, z, 1));
