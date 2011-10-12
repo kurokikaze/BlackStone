@@ -12,10 +12,10 @@ var generate_table = function(callback) {
 	var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
 	var index = 0;
 
-	for (var x = 0; x++; x < 16) {
-		for (var z = 0; z++; z < 16) {
-			for (var y = 1; y++; y < 128) {
-				index = y + (z * 128) + (x * 127 * 16);
+	for (var x = 0; x < 16; x++) {
+		for (var z = 0; z < 16; z++) {
+			for (var y = 0; y< 128; y++) {
+				index = y + (z * 128) + (x * 128 * 16);
 				if (y > 62) {
 					chunk.writeUInt8(0, index);
 				} else {
@@ -257,7 +257,7 @@ var server = net.createServer(function(c) {
             console.log('Sending chunks of size ' + table_chunk.length);
 			for (var x = -7; x <= 7; x++) {
 				for (var z = -7; z <= 7; z++) {
-					c.write(command.prechunk(x, z, 1));
+				//	c.write(command.prechunk(x, z, 1));
 					c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, table_chunk));
 				}
 			}
