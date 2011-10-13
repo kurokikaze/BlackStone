@@ -3,11 +3,9 @@ var net = require('net'),
 	zlib = require('zlib'),
     config = require('./config');
 
-if(zlib.Deflate) {
-console.log('Deflate present');
-} else {
- console.log('No deflate present in zlib');
- }
+var current_max_entity = 1;
+var users = [];
+
 var generate_table = function(callback) {
 	var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
 	var index = 0;
@@ -150,7 +148,6 @@ command.prechunk = function(X, Z, mode) {
 }
 
 command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
-	// console.log('Planned chunk length is ' + compressed_chunk.length);
 	var buf = new Buffer(18 + compressed_chunk.length);
 	buf.writeUInt8(0x33, 0);
 	buf.writeInt32BE(X, 1);
@@ -160,12 +157,7 @@ command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
 	buf.writeInt8(Size_Y, 12);
 	buf.writeInt8(Size_Z, 13);
 	buf.writeInt32BE(compressed_chunk.length, 14);
-	/*if (Buffer.isBuffer(compressed_chunk)) {
-		console.log('Type of compressed chunk is buffer');
-	}
-	if (compressed_chunk instanceof String) {
-		console.log('Type of compressed chunk is String');
-	}*/
+
 	compressed_chunk.copy(buf, 18, 0);
 	return buf;
 }
@@ -221,6 +213,9 @@ var readPacket = function(str) {
 			packet.fields.Y = str.readDoubleBE(9);
 			packet.fields.Stance = str.readDoubleBE(17);
 			packet.fields.Z = str.readDoubleBE(25);
+			packet.fields.yaw = str.readFloatBE(33);
+			packet.fields.pitch = str.readFloatBE(37);
+			packet.fields.on_ground = str.readUInt8(41);
 			break;
 	}
 	return packet;
@@ -232,23 +227,44 @@ var str8 = function(str) {
 }
 
 var server = net.createServer(function(c) {
-	//var data = '';
-        var hash = 'deadbeefdeadbeef';
+	var current_entity;
+	var user;
+	var hash = 'deadbeefdeadbeef';
 	c.on('data', function(chunk) {
-		//console.log(chunk.length + ' bytes of data received');
-		//data += chunk;
 		var packet = readPacket(chunk);
-		if (packet.type == 254) {
+		switch (packet.type) {
+		case 13:
+			user.x = packet.fields.X;
+			user.y = packet.fields.Y;
+			user.z = packet.fields.Z;
+			user.stance = packet.fields.stance;
+			user.pitch = packet.fields.pitch;
+			user.yaw = packet.fields.yaw;
+			packet
+		case 254:
 			console.log('Client asks for server status');
 			var answer = command.kick('BlackStone' + String.fromCharCode(167) + '0' + String.fromCharCode(167) + '1000');
 			console.log('answer is ' + answer.length + ' bytes long');
 			c.write(answer);
 			//c.end();
-		} else if (packet.type == 2) {
+			break;
+		case 2:
 			console.log('Clients sends username ' + packet.fields.username);
-			var answer = command.auth(hash);
-			c.write(answer);
-		} else if(packet.type == 1) {
+			c.write(command.auth(hash));
+			
+			current_entity = max_current_entity;
+			max_current_entity++;
+			user = {
+				'username' : packet.fields.username,
+				'x' : 1,
+				'y' : 65.6,
+				'z' : 1,
+				'stance' : 67.2,
+				'on_ground':true
+			}
+			users[current_entity] = user;
+			break;
+		case 1:
 			c.write(command.login(1289, 1224, 1, 0, 0, 128, 128));
 
 			// Send chunks
@@ -274,18 +290,13 @@ var server = net.createServer(function(c) {
 				c.write(command.equip(1289, slot, -1, 0));
 			}
 			console.log('Setting spawn position');
-			c.write(command.spawn_position(0,63,0));
+			c.write(command.spawn_position(0, 63, 0));
 		
 			console.log('Spawning player');
-			c.write(command.position_look(1, 67.2, 65.6, 1, 0, 0, 0));
-			//c.write(answer);
+			c.write(command.position_look(user.x, user.stance, user.y, user.z, user.pitch, user.yaw, on_ground));
 			});
-		} else {
-			if (packet.type != 11) {
-				//console.log('Got packet of type ' + packet.type + ', fields: ', packet.fields);
-			}
+			break;
 		}
-		
 	});
 
 	c.on('end', function() {
