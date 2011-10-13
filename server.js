@@ -312,8 +312,8 @@ var server = net.createServer(function(c) {
 			});
 			setTimeout(function() {
 				console.log('Spawning mob');
-				c.write(command.mob_spawn(0x233, 54, 1, 67, 1, -27, 0, {}));
-			}, 1500);
+				c.write(command.mob_spawn(0x233, 52, 32, 2176, 32, -27, 0, {}));
+			}, 10000);
 			user.pulse = setInterval(function() {
 				c.write(command.keepalive());
 			}, 800);
