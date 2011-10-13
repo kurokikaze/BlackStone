@@ -3,7 +3,7 @@ var net = require('net'),
 	zlib = require('zlib'),
     config = require('./config');
 
-var current_max_entity = 1;
+var max_current_entity = 1;
 var users = [];
 
 var generate_table = function(callback) {
@@ -63,7 +63,7 @@ var generate_table = function(callback) {
 var command = {};
 
 command.keepalive = function() {
-	var hash = Math.Random(0, 1337);
+	var hash = parseInt(Math.random(0, 1337));
 	var buf = new Buffer(5);
 	buf.writeUInt8(0, 0);
 	buf.writeInt32BE(hash, 1);
@@ -137,6 +137,20 @@ command.equip = function(entity_id, slot, item_id, damage) {
 	return buf;
 }
 
+command.mob_spawn = function(EID, type, X, Y, Z, yaw, pitch, metadata) {
+	var buf = new Buffer(21);
+	buf.writeUInt8(0x18, 0);
+	buf.writeInt32BE(EID, 1);
+	buf.writeUInt8(type, 5);
+	buf.writeInt32BE(parseInt(X), 6);
+	buf.writeInt32BE(parseInt(Y), 10);
+	buf.writeInt32BE(parseInt(Z), 14);
+	buf.writeInt8(yaw, 18);
+	buf.writeInt8(pitch, 19);
+	buf.writeUInt8(0x7F, 20);
+	return buf;
+};
+
 command.prechunk = function(X, Z, mode) {
 	var buf = new Buffer(10);
 	buf.writeUInt8(0x32, 0);
@@ -169,8 +183,8 @@ command.position_look = function(x, stance, y, z, yaw, pitch, on_ground) {
 	buf.writeDoubleBE(stance, 9);
 	buf.writeDoubleBE(y, 17);
 	buf.writeDoubleBE(z, 25);
-	buf.writeFloatBE(yaw, 33);
-	buf.writeFloatBE(pitch, 37);
+	buf.writeFloatBE(parseFloat(yaw), 33);
+	buf.writeFloatBE(parseFloat(pitch), 37);
 	buf.writeUInt8(parseInt(on_ground), 41);
 	return buf;
 }
@@ -197,7 +211,7 @@ var readPacket = function(str) {
 			var length_username = str.readUInt16BE(9);
 			var str_ucs2be = str.slice(11, 11 + 2*length);
 			packet.fields.username = conv.convert(str_ucs2be).toString('utf8');
-
+			break;
 		case 2:
 			var length = str.readUInt16BE(1);
 			var str_ucs2be = str.slice(3, 3 + 2*length);
@@ -228,7 +242,7 @@ var str8 = function(str) {
 
 var server = net.createServer(function(c) {
 	var current_entity;
-	var user;
+	var user = {};
 	var hash = 'deadbeefdeadbeef';
 	c.on('data', function(chunk) {
 		var packet = readPacket(chunk);
@@ -240,7 +254,7 @@ var server = net.createServer(function(c) {
 			user.stance = packet.fields.stance;
 			user.pitch = packet.fields.pitch;
 			user.yaw = packet.fields.yaw;
-			packet
+			break;
 		case 254:
 			console.log('Client asks for server status');
 			var answer = command.kick('BlackStone' + String.fromCharCode(167) + '0' + String.fromCharCode(167) + '1000');
@@ -259,8 +273,10 @@ var server = net.createServer(function(c) {
 				'x' : 1,
 				'y' : 65.6,
 				'z' : 1,
+				'yaw' : 0.0,
+				'pitch' : 0.0,
 				'stance' : 67.2,
-				'on_ground':true
+				'on_ground': 1
 			}
 			users[current_entity] = user;
 			break;
@@ -278,7 +294,6 @@ var server = net.createServer(function(c) {
 			}
 			for (var x = -7; x <= 7; x++) {
 				for (var z = -7; z <= 7; z++) {
-				//	c.write(command.prechunk(x, z, 1));
 					c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, table_chunk));
 				}
 			}
@@ -293,14 +308,28 @@ var server = net.createServer(function(c) {
 			c.write(command.spawn_position(0, 63, 0));
 		
 			console.log('Spawning player');
-			c.write(command.position_look(user.x, user.stance, user.y, user.z, user.pitch, user.yaw, on_ground));
+			c.write(command.position_look(user.x, user.stance, user.y, user.z, user.pitch, user.yaw, user.on_ground));
 			});
+			setTimeout(function() {
+				console.log('Spawning mob');
+				c.write(command.mob_spawn(0x233, 54, 1, 67, 1, -27, 0, {}));
+			}, 1500);
+			user.pulse = setInterval(function() {
+				c.write(command.keepalive());
+			}, 800);
 			break;
+		case 255: // Player disconnects
+			if (user.pulse) {
+				user.pulse.stop();
+			}
 		}
 	});
 
 	c.on('end', function() {
 		console.log('End');
+		if (user && user.pulse) {
+			user.pulse.stop();
+		}
 		// console.log('Packet type is ' + data.charCodeAt(0));
 	});
 
