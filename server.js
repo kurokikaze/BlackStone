@@ -5,6 +5,7 @@ var net = require('net'),
 
 var max_current_entity = 1;
 var users = [];
+var mobs = [];
 
 var generate_table = function(callback) {
 	var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
@@ -135,7 +136,7 @@ command.equip = function(entity_id, slot, item_id, damage) {
 	buf.writeInt16BE(damage, 9);
 
 	return buf;
-}
+};
 
 command.mob_spawn = function(EID, type, X, Y, Z, yaw, pitch, metadata) {
 	var buf = new Buffer(21);
@@ -151,6 +152,28 @@ command.mob_spawn = function(EID, type, X, Y, Z, yaw, pitch, metadata) {
 	return buf;
 };
 
+command.entity_velocity = function(EID, deltaX, deltaY, deltaZ) {
+	var buf = new Buffer(11);
+	buf.writeUInt8(0x1C, 0);
+	buf.writeInt32BE(EID, 1);
+	buf.writeInt16BE(parseInt(deltaX), 5);
+	buf.writeInt16BE(parseInt(deltaY), 7);
+	buf.writeInt16BE(parseInt(deltaZ), 9);
+
+	return buf;
+};
+
+command.entity_relative_move = function(EID, deltaX, deltaY, deltaZ) {
+	var buf = new Buffer(8);
+	buf.writeUInt8(0x1F, 0);
+	buf.writeInt32BE(EID, 1);
+	buf.writeInt8(deltaX, 5);
+	buf.writeInt8(deltaY, 6);
+	buf.writeInt8(deltaZ, 7);
+
+	return buf;
+}
+
 command.prechunk = function(X, Z, mode) {
 	var buf = new Buffer(10);
 	buf.writeUInt8(0x32, 0);
@@ -159,7 +182,7 @@ command.prechunk = function(X, Z, mode) {
 	buf.writeInt32BE(Z, 5);
 	buf.writeUInt8(parseInt(1), 9);
 	return buf;
-}
+};
 
 command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
 	var buf = new Buffer(18 + compressed_chunk.length);
@@ -174,7 +197,7 @@ command.chunk = function(X, Y, Z, Size_X, Size_Y, Size_Z, compressed_chunk) {
 
 	compressed_chunk.copy(buf, 18, 0);
 	return buf;
-}
+};
 
 command.position_look = function(x, stance, y, z, yaw, pitch, on_ground) {
 	var buf = new Buffer(42);
@@ -187,7 +210,7 @@ command.position_look = function(x, stance, y, z, yaw, pitch, on_ground) {
 	buf.writeFloatBE(parseFloat(pitch), 37);
 	buf.writeUInt8(parseInt(on_ground), 41);
 	return buf;
-}
+};
 
 var str16 = function(str) {
 	var conv = new iconv('UTF-8', 'UCS-2BE');
@@ -196,13 +219,12 @@ var str16 = function(str) {
 	var bestring = conv.convert(str);
 	bestring.copy(buf2, 2, 0);
 	return buf2;
-}
+};
 
 var readPacket = function(str) {
 	conv = new iconv('UCS-2BE', 'UTF-8');
 	var packet = {};
 	packet.type = str.readUInt8(0);
-	// console.log('Got packet of type ' + packet.type);
 	packet.fields = {};
 	
 	switch(packet.type) {
@@ -312,7 +334,19 @@ var server = net.createServer(function(c) {
 			});
 			setTimeout(function() {
 				console.log('Spawning mob');
-				c.write(command.mob_spawn(0x233, 52, 32, 2176, 32, -27, 0, {}));
+				var mob = {
+					'x' : 32,
+					'y' : 62.5 * 32,
+					'z' : 32,
+					'yaw' : -27,
+					'pitch' : 0
+				}
+				mobs[0x233] = mob;
+				c.write(command.mob_spawn(0x233, 52, 32, parseInt(62.5 * 32), 32, -27, 0, {}));
+				setInterval(function(){
+					c.write(command.entity_relative_move(0x233, 32, 0, 0));
+					c.write(command.entity_velocity(0x233, 1300, 0, 0));
+				}, 500);
 			}, 10000);
 			user.pulse = setInterval(function() {
 				c.write(command.keepalive());
