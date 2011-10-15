@@ -265,7 +265,7 @@ var str8 = function(str) {
 
 var server = net.createServer(function(c) {
 	var current_entity;
-	var user = {};
+	var user = new entities.Player();
 	var hash = 'deadbeefdeadbeef';
 	c.on('data', function(chunk) {
 		var packet = readPacket(chunk);
@@ -336,15 +336,7 @@ var server = net.createServer(function(c) {
 			setTimeout(function() {
 				console.log('Spawning mob');
 				var mob = new entities.Mob(52, 32, 62.5*32, 32);
-/*				var mob = {
-					'x' : 32,
-					'y' : 62.5 * 32,
-					'z' : 32,
-					'yaw' : -27,
-					'pitch' : 0
-				}*/
-				mobs[0x233] = mob;
-				c.write(command.mob_spawn(0x233, 52, 32, parseInt(62.5 * 32), 32, -27, 0, {}));
+				c.write(command.mob_spawn(mob.getEID(), mob.getType(), mob.getX(),  mob.getY(), mob.getZ(), -27, 0, {}));
 				setInterval(function(){
 					c.write(command.entity_relative_move(0x233, 32, 0, 0));
 					c.write(command.entity_velocity(0x233, 1300, 0, 0));

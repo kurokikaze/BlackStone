@@ -79,10 +79,21 @@ var Player = function(init_username, init_x, init_y, init_z) {
 	this.map = entity.map;
 	this.remove = entity.remove;
 
+	var that = this;
 	var username = init_username;
 	
 	this.getUsername = function() {
 		return username;
+	}
+
+	this.connect = function(connection) {
+		var heartbeat = setInterval(function() {
+			connection.write(command.keepalive());
+		}, 700);
+		connection.on('end', function() { // Disconnect
+			that.remove();	// Free EID
+			heartbeat.stop(); // Stop sending keepalive			
+		});
 	}
 	register_in_pool(this);
 }
