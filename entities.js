@@ -1,4 +1,6 @@
+var command = require('./protocol').command;
 var eid_pool = [];
+
 var max_eid = 1;
 var entities_pool = {};
 
@@ -114,6 +116,23 @@ var Mob = function(init_type, init_x, init_y, init_z) {
 		return type;
 	};
 	register_in_pool(this);
+}
+
+module.exports.mob_types = {
+	'creeper' : 50,
+	'skeleton' : 51,
+	'spider' : 52,
+	'zombie' : 54,
+	'slime' : 55,
+	'ghast' : 56,
+	'zombie_pigman' : 57,
+	'pig' : 90,
+	'sheep' : 91,
+	'cow' : 92,
+	'hen' : 93,
+	'squid' : 94,
+	'wolf' : 95,
+	'villager' : 120 
 }
 
 module.exports.Player = Player;
