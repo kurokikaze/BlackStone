@@ -71,7 +71,7 @@ var _Entity = function(init_x, init_y, init_z) {
 
 }
 
-var Player = function(init_username, init_x, init_y, init_z) {
+var Player = function(init_x, init_y, init_z) {
 	var entity = new _Entity(init_x, init_y, init_z);
 	this.getEID = entity.getEID;
 	this.getX = entity.getX;
@@ -82,20 +82,27 @@ var Player = function(init_username, init_x, init_y, init_z) {
 	this.remove = entity.remove;
 
 	var that = this;
-	var username = init_username;
-	
+	var heartbeat = undefined; // will be initialized on connect
+
+	var username = undefined;
+
+	this.login = function(auth_username) {
+		username = auth_username; 
+	}
+
 	this.getUsername = function() {
 		return username;
 	}
 
 	this.connect = function(connection) {
-		var heartbeat = setInterval(function() {
+		heartbeat = setInterval(function() {
 			connection.write(command.keepalive());
 		}, 700);
-		connection.on('end', function() { // Disconnect
-			that.remove();	// Free EID
-			heartbeat.stop(); // Stop sending keepalive			
-		});
+		connection.on('end', that.disconnect);
+	}
+	this.disconnect = function() {
+		that.remove();
+		if (heartbeat) heartbeat.stop();
 	}
 	register_in_pool(this);
 }

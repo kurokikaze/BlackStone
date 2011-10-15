@@ -93,11 +93,12 @@ var server = net.createServer(function(c) {
 			break;
 		case 2:
 			console.log('Clients sends username ' + packet.fields.username);
+			user.login(packet.fields.username);
 			c.write(command.auth(hash));
 			
 			current_entity = max_current_entity;
 			max_current_entity++;
-			user = {
+			user_old = {
 				'username' : packet.fields.username,
 				'x' : 1,
 				'y' : 65.6,
@@ -107,7 +108,7 @@ var server = net.createServer(function(c) {
 				'stance' : 67.2,
 				'on_ground': 1
 			}
-			users[current_entity] = user;
+			users[current_entity] = user_old;
 			break;
 		case 1:
 			c.write(command.login(1289, 1224, 1, 0, 0, 128, 128));
@@ -137,7 +138,7 @@ var server = net.createServer(function(c) {
 			c.write(command.spawn_position(0, 63, 0));
 		
 			console.log('Spawning player');
-			c.write(command.position_look(user.x, user.stance, user.y, user.z, user.pitch, user.yaw, user.on_ground));
+			c.write(command.position_look(user_old.x, user_old.stance, user_old.y, user_old.z, user_old.pitch, user_old.yaw, user_old.on_ground));
 			});
 			setTimeout(function() {
 				console.log('Spawning mob');
