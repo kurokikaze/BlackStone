@@ -1,7 +1,8 @@
 var net = require('net'),
 	iconv = require('iconv').Iconv,
 	zlib = require('zlib'),
-    config = require('./config');
+    config = require('./config'),
+	entities = require('./entities');
 
 var max_current_entity = 1;
 var users = [];
@@ -334,13 +335,14 @@ var server = net.createServer(function(c) {
 			});
 			setTimeout(function() {
 				console.log('Spawning mob');
-				var mob = {
+				var mob = new entities.Mob(52, 32, 62.5*32, 32);
+/*				var mob = {
 					'x' : 32,
 					'y' : 62.5 * 32,
 					'z' : 32,
 					'yaw' : -27,
 					'pitch' : 0
-				}
+				}*/
 				mobs[0x233] = mob;
 				c.write(command.mob_spawn(0x233, 52, 32, parseInt(62.5 * 32), 32, -27, 0, {}));
 				setInterval(function(){
