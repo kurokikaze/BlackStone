@@ -2,11 +2,19 @@ var net = require('net'),
     config = require('./config'),
 	entities = require('./entities'),
 	command = require('./protocol').command,
-	readPacket = require('./protocol').readPacket;
+	readPacket = require('./protocol').readPacket,
+    map = require('./map').map;
 
 var max_current_entity = 1;
 var users = [];
-var mobs = [];
+
+var overworld = new map();
+
+for (var x = -7; x <= 7; x++) {
+    for (var z = -7; z<= 7; z++) {
+        overworld.preGenerate(x, z);
+    }
+}
 
 var str8 = function(str) {
 	var buf2 = new Buffer()
@@ -57,41 +65,56 @@ var server = net.createServer(function(c) {
 			c.write(command.login(1289, 1224, 1, 0, 0, 128, 128));
 
 			// Send chunks
-			generate_table(function(table_chunk) {
 			
-            console.log('Sending chunks of size ' + table_chunk.length);
-			for (var x = -7; x<=7; x++) {
-				for (var z = -7; z <= 7; z++) {
-					c.write(command.prechunk(x, z, 1));
-				}
-			}
-			for (var x = -7; x <= 7; x++) {
-				for (var z = -7; z <= 7; z++) {
-					c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, table_chunk));
-				}
-			}
-
-			console.log('Sending time');
-			c.write(command.time());
-			console.log('Sending inventory');
-			for (var slot = 0; slot <= 4; slot++) {
-				c.write(command.equip(1289, slot, -1, 0));
-			}
-			console.log('Setting spawn position');
-			c.write(command.spawn_position(0, 63, 0));
-		
-			console.log('Spawning player');
-			c.write(command.position_look(user_old.x, user_old.stance, user_old.y, user_old.z, user_old.pitch, user_old.yaw, user_old.on_ground));
-			});
-			setTimeout(function() {
-				console.log('Spawning mob');
-				var mob = new entities.Mob(entities.mob_types.villager, 32, 2032, 32);
-				c.write(command.mob_spawn(mob.getEID(), mob.getType(), mob.getX(),  mob.getY(), mob.getZ(), -27, 0, {}));
-				setInterval(function(){
-					c.write(command.entity_relative_move(0x233, 32, 0, 0));
-					c.write(command.entity_velocity(0x233, 1300, 0, 0));
-				}, 500);
-			}, 10000);
+            Step(function sendPreChunks() { 
+                console.log('Sending chunks of size ' + table_chunk.length);
+			    for (var x = -7; x<=7; x++) {
+				    for (var z = -7; z <= 7; z++) {
+		    			c.write(command.prechunk(x, z, 1));
+	    			}
+    			}
+                this();
+            },
+            function loadChunks() {
+    			for (var x = -7; x <= 7; x++) {
+				    for (var z = -7; z <= 7; z++) {
+                        overworld.getCompressed(x, z, this.parallel());
+	    			}
+    			}
+            },
+            function sendChunks(err, chunks) {
+                for (var i in chunks) {
+                    c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, chunk_data));
+                }
+            },
+            function sendTime() {
+			    console.log('Sending time');
+    			c.write(command.time());
+            },
+            function sendInventory() {
+    			console.log('Sending inventory');
+	    		for (var slot = 0; slot <= 4; slot++) {
+		    		c.write(command.equip(1289, slot, -1, 0));
+			    }
+            },
+            function sendSpawnPosition() {
+    			console.log('Setting spawn position');
+	    		c.write(command.spawn_position(0, 63, 0));
+		    }, 
+            function spawnPlayer() {
+    			console.log('Spawning player');
+	    		c.write(command.position_look(user_old.x, user_old.stance, user_old.y, user_old.z, user_old.pitch, user_old.yaw, user_old.on_ground));
+		    	
+			    setTimeout(function() {
+				    console.log('Spawning mob');
+    				var mob = new entities.Mob(entities.mob_types.villager, 32, 2032, 32);
+	    			c.write(command.mob_spawn(mob.getEID(), mob.getType(), mob.getX(),  mob.getY(), mob.getZ(), -27, 0, {}));
+		    		setInterval(function(){
+    					c.write(command.entity_relative_move(0x233, 32, 0, 0));
+			    		c.write(command.entity_velocity(0x233, 1300, 0, 0));
+				    }, 500);
+	    		}, 10000);
+            });
 			break;
 		case 255: // Player disconnects
 			user.remove();
