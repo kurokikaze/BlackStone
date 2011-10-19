@@ -38,6 +38,10 @@ var _Entity = function(init_x, init_y, init_z) {
 	var x = init_x;
 	var y = init_y;
 	var z = init_z;
+
+    var yaw = 0;
+    var pitch = 0;
+
 	var map;
 	var EID = make_eid();
 	var that = this;
@@ -60,9 +64,28 @@ var _Entity = function(init_x, init_y, init_z) {
 		return EID;
 	}
 
+    this.getPitch = function() {
+        return pitch;
+    }
+
+    this.getYaw = function() {
+        return yaw;
+    }
 	this.register = function(newmap) {
 		var map = newmap;
 	}
+
+    this.move = function(newx, newy, newz, newpitch, newyaw) {
+        x = newx;
+        y = newy;
+        z = newz;
+        if (newpitch) {
+            pitch = newpitch;
+        }
+        if (newyaw) {
+            yaw = newyaw;
+        }
+    }
 
 	this.remove = function() {
 		dispose_eid(EID); // Free EID
@@ -77,8 +100,11 @@ var Player = function(init_x, init_y, init_z) {
 	this.getX = entity.getX;
 	this.getY = entity.getY;
 	this.getZ = entity.getZ;
+    this.getYaw = entity.getYaw;
+    this.getPitch = entity.getPitch;
 	this.register = entity.register;
 	this.map = entity.map;
+    this.move = entity.move;
 	this.remove = entity.remove;
 
 	var that = this;
@@ -114,9 +140,12 @@ var Mob = function(init_type, init_x, init_y, init_z) {
 	this.getX = entity.getX;
 	this.getY = entity.getY;
 	this.getZ = entity.getZ;
+    this.getYaw = entity.getYaw;
+    this.getPitch = entity.getPitch; 
 	this.register = entity.register;
 	this.map = entity.map;
 	this.remove = entity.remove;
+    this.move = entity.move;
 
 	var type = init_type;
 	this.getType = function() {

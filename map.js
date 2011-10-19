@@ -11,9 +11,10 @@ var chunk = function(chunk_x, chunk_z) {
     var that = this;
     var already_compressed = false;
 
-    for (var x = 0; x < 16; x++) {
-        for (var y = 0; y < 128; y++) {
-            for (var z = 0; z < 16; z++) {
+    var x, y, z;
+    for (x = 0; x < 16; x++) {
+        for (y = 0; y < 128; y++) {
+            for (z = 0; z < 16; z++) {
                 if (!blocks[x]) { // create rows if needed
                     blocks[x] = [];
                 }
@@ -25,6 +26,9 @@ var chunk = function(chunk_x, chunk_z) {
                 if (y > 62) {
                     blocks[x][y][z] = 0;
                 } else if (y == 62) {
+                    if (Math.floor(Math.random() * 101) == 100) {
+                        blocks[x][y][z] = 20;
+                    }
                     blocks[x][y][z] = 2; //grass surface
                 } else if (y <= 1) {
                     blocks[x][y][z] = 7;
@@ -44,7 +48,7 @@ var chunk = function(chunk_x, chunk_z) {
 			    for (y = 0; y< 128; y++) {
 				    index = y + (z * 128) + (x * 128 * 16);
                     // console.log('Writing ' + blocks[x][y][z] + ' at position ' + index);
-				    chunk_data.writeUInt8(blocks[x][y][z], index);
+				    chunk_data.writeUInt8(blocks[x][y][z] , index);
 	    		}
 		    }
     	}
@@ -61,8 +65,8 @@ var chunk = function(chunk_x, chunk_z) {
             console.log('got part of compressed buffer for ' + chunk_x + ', ' + chunk_z + ': ' + data_part.length + ' bytes');
     	});
 
-	    compressor.on('end', function() {
-		    var total_length = 0;
+	    compressor.on('end', function(data_part) {
+       	    var total_length = 0;
     		for (var i in data) {
 	    		total_length += data[i].length;
 		    }

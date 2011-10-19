@@ -165,7 +165,7 @@ var readPacket = function(str) {
 	var packet = {};
 	packet.type = str.readUInt8(0);
 	packet.fields = {};
-    console.log('Got packet of type ' + packet.type);
+//    console.log('Got packet of type ' + packet.type);
 	
 	switch(packet.type) {
 		case 1:

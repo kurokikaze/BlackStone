@@ -11,11 +11,11 @@ var users = [];
 
 var overworld = new map();
 
-//for (var x = -7; x <= 7; x++) {
-//    for (var z = -7; z<= 7; z++) {
-        overworld.preGenerate(1, 1);
-//    }
-//}
+for (var x = -7; x <= 7; x++) {
+    for (var z = -7; z<= 7; z++) {
+        overworld.preGenerate(x, z);
+    }
+}
 
 var str8 = function(str) {
 	var buf2 = new Buffer()
@@ -23,7 +23,7 @@ var str8 = function(str) {
 
 var server = net.createServer(function(c) {
 	var current_entity;
-	var user = new entities.Player();
+	var user = new entities.Player(0, 65.6, 0);
 	var hash = 'deadbeefdeadbeef';
 	c.on('data', function(chunk) {
 		var packet = readPacket(chunk);
@@ -35,6 +35,7 @@ var server = net.createServer(function(c) {
 			user.stance = packet.fields.stance;
 			user.pitch = packet.fields.pitch;
 			user.yaw = packet.fields.yaw;
+            user.move(packet.fields.X, packet.fields.Y, packet.fields.Z, packet.fields.yaw, packet.fields.pitch);
 			break;
 		case 254:
 			console.log('Client asks for server status');
@@ -63,12 +64,13 @@ var server = net.createServer(function(c) {
 			users[current_entity] = user_old;
 			break;
 		case 1:
+            console.log('Logging in user ' + user.getUsername());
 			c.write(command.login(1289, 1224, 1, 0, 0, 128, 128));
 
 			// Send chunks
 			
             Step(function sendPreChunks() { 
-                console.log('Sending chunks of size ' + table_chunk.length);
+                console.log('Sending pre-chunks');
 			    for (var x = -7; x<=7; x++) {
 				    for (var z = -7; z <= 7; z++) {
 		    			c.write(command.prechunk(x, z, 1));
@@ -77,6 +79,7 @@ var server = net.createServer(function(c) {
                 this();
             },
             function loadChunks() {
+                console.log('Loading chunks');
     			for (var x = -7; x <= 7; x++) {
 				    for (var z = -7; z <= 7; z++) {
                         overworld.getCompressed(x, z, function(chunk_data) {
@@ -86,27 +89,32 @@ var server = net.createServer(function(c) {
     			}
             },
             function sendChunks(err, chunks) {
+                console.log('Writing chunks to player');
                 for (var i in chunks) {
                     c.write(chunks[i]);
                 }
+                this();
             },
             function sendTime() {
 			    console.log('Sending time');
     			c.write(command.time());
+                this();
             },
             function sendInventory() {
     			console.log('Sending inventory');
 	    		for (var slot = 0; slot <= 4; slot++) {
 		    		c.write(command.equip(1289, slot, -1, 0));
 			    }
+                this();
             },
             function sendSpawnPosition() {
     			console.log('Setting spawn position');
 	    		c.write(command.spawn_position(0, 63, 0));
+                this();
 		    }, 
             function spawnPlayer() {
     			console.log('Spawning player');
-	    		c.write(command.position_look(user_old.x, user_old.stance, user_old.y, user_old.z, user_old.pitch, user_old.yaw, user_old.on_ground));
+	    		c.write(command.position_look(user.getX(), user_old.stance, user.getY(), user.getZ(), user.getPitch(), user.getYaw(), user_old.on_ground));
 		    	
 			    setTimeout(function() {
 				    console.log('Spawning mob');
@@ -117,6 +125,7 @@ var server = net.createServer(function(c) {
 			    		c.write(command.entity_velocity(0x233, 1300, 0, 0));
 				    }, 500);
 	    		}, 10000);
+                //this();
             });
 			break;
 		case 255: // Player disconnects
