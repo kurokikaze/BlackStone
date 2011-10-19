@@ -1,6 +1,7 @@
 var events = require('events'),
 	zlib = require('zlib'),
-    util = require('util');
+    util = require('util'),
+    Step = require('step');
 
 var chunk = function(chunk_x, chunk_z) {
     events.EventEmitter.call(this);
@@ -8,7 +9,7 @@ var chunk = function(chunk_x, chunk_z) {
     var blocks = [];
 
     var that = this;
-    var already_compressed = true;
+    var already_compressed = false;
 
     for (var x = 0; x < 16; x++) {
         for (var y = 0; y < 128; y++) {
@@ -35,31 +36,35 @@ var chunk = function(chunk_x, chunk_z) {
     }
     
     var compress = function() {
-	    var chunk = new Buffer(16 * 16 * 128 + 16384 * 3);
+	    var chunk_data = new Buffer(16 * 16 * 128 + 16384 * 3);
 	    var index = 0;
-
-	    for (var x = 0; x < 16; x++) {
-		    for (var z = 0; z < 16; z++) {
-			    for (var y = 0; y< 128; y++) {
+        var x, y, z;
+	    for (x = 0; x < 16; x++) {
+		    for (z = 0; z < 16; z++) {
+			    for (y = 0; y< 128; y++) {
 				    index = y + (z * 128) + (x * 128 * 16);
-				    chunk.writeUInt8(blocks[x][y][z], index);
+                    // console.log('Writing ' + blocks[x][y][z] + ' at position ' + index);
+				    chunk_data.writeUInt8(blocks[x][y][z], index);
 	    		}
 		    }
     	}
 
-	    chunk.fill(0, 32768, 32768+16384); // empty metadata
-    	chunk.fill(255, 32768+16384, 32768+16384*2); // full brightness
-	    chunk.fill(255, 32768 + 16384*2, 32768+16384*3); //full sky light
+	    chunk_data.fill(0, 32768, 32768+16384); // empty metadata
+    	chunk_data.fill(255, 32768+16384, 32768+16384*2); // full brightness
+	    chunk_data.fill(255, 32768 + 16384*2, 32768+16384*3); //full sky light
 
-	    var compressor = zlib.Deflate();
+	    var compressor = new zlib.Deflate();
     	var data = [];
+
 	    compressor.on('data', function(data_part) { 
 		    data.push(data_part);
+            console.log('got part of compressed buffer for ' + chunk_x + ', ' + chunk_z + ': ' + data_part.length + ' bytes');
     	});
+
 	    compressor.on('end', function() {
 		    var total_length = 0;
-    		for (i in data) {
-	    		total_length = data[i].length;
+    		for (var i in data) {
+	    		total_length += data[i].length;
 		    }
     		console.log('Chunk size after compression: ' + total_length);
 	    	var out_data = new Buffer(total_length);
@@ -73,7 +78,8 @@ var chunk = function(chunk_x, chunk_z) {
             console.log('Compressed chunk at ' + chunk_x + ', ' + chunk_z);
             that.emit('compressed');
 	    });
-    	compressor.write(chunk);
+        console.log('Writing ' + chunk_data.length + ' bytes to compressor');
+    	compressor.write(chunk_data);
 	    compressor.end();
     }
 

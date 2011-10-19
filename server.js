@@ -3,18 +3,19 @@ var net = require('net'),
 	entities = require('./entities'),
 	command = require('./protocol').command,
 	readPacket = require('./protocol').readPacket,
-    map = require('./map').map;
+    map = require('./map').map,
+    Step = require('step');
 
 var max_current_entity = 1;
 var users = [];
 
 var overworld = new map();
 
-for (var x = -7; x <= 7; x++) {
-    for (var z = -7; z<= 7; z++) {
-        overworld.preGenerate(x, z);
-    }
-}
+//for (var x = -7; x <= 7; x++) {
+//    for (var z = -7; z<= 7; z++) {
+        overworld.preGenerate(1, 1);
+//    }
+//}
 
 var str8 = function(str) {
 	var buf2 = new Buffer()
@@ -78,13 +79,15 @@ var server = net.createServer(function(c) {
             function loadChunks() {
     			for (var x = -7; x <= 7; x++) {
 				    for (var z = -7; z <= 7; z++) {
-                        overworld.getCompressed(x, z, this.parallel());
+                        overworld.getCompressed(x, z, function(chunk_data) {
+                            (this.parallel())(false, command.chunk(x*16, 0, z*16, 15, 127, 15, chunk_data));
+                        });
 	    			}
     			}
             },
             function sendChunks(err, chunks) {
                 for (var i in chunks) {
-                    c.write(command.chunk(x*16, 0, z*16, 15, 127, 15, chunk_data));
+                    c.write(chunks[i]);
                 }
             },
             function sendTime() {
